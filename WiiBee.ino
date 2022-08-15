@@ -28,6 +28,12 @@
 const int HX711_sck = D1; //mcu > HX711 sck pin
 const int HX711_dout[4] = {D2, D3, D4, D5}; //mcu > HX711 dout pin
 
+//EEPROM start address
+const int SETTINGS_ADDRESS = 0;
+
+//Number of load cells connected to the ESP
+const int NB_LOAD_CELLS = 4;
+
 //HX711 constructor:
 HX711_ADC loadCells[4] = {
     HX711_ADC(HX711_dout[0], HX711_sck),
@@ -36,10 +42,17 @@ HX711_ADC loadCells[4] = {
     HX711_ADC(HX711_dout[3], HX711_sck)  
 };
 
-const int nbLoadCells = 4;
-const int tareOffsetVal_eepromAdresses[4] = {0, 8, 16, 24};
-const int calibrationFactorAdress = 32;
-float calibrationFactor = 100.0;
+struct WiiBeeSettings {
+  int tareOffsetVal[NB_LOAD_CELLS];
+  float calibrationFactor;
+  String essid;
+  String passphrase;
+  String server;
+  String wiiBeeName;
+};
+
+WiiBeeSettings wiiBeeSettings;
+
 unsigned long t = 0;
 
 void setup() {
@@ -53,14 +66,12 @@ void setup() {
 
 
 void loop() {
-  
-  const int serialPrintInterval = 5000; //increase value to slow down serial print activity
-  const int nbSamples = 5; // The more you get, the more accurate it is (but it is longer))
-  int sum = 0;
+
+  const int serialPrintInterval = 500; //increase value to slow down serial print activity
+  const int nbSamples = 1; // The more you get, the more accurate it is (but it is longer))
+  float sum = 0.0;
   
   if (millis() > t + serialPrintInterval) {
-
-
     for(int i = 0; i < nbSamples; i++) {
       sum += readWeight();
     }
@@ -77,9 +88,11 @@ void readSerialInput() {
   // receive command from serial terminal
   // send 't' to initiate tare operation:
   // send 'c' to initiate calibration
+  // send 'd' to display settings
   if (Serial.available() > 0) {
     char inByte = Serial.read();
     if (inByte == 't') refreshOffsetValueAndSaveToEEprom();
     if (inByte == 'c') calibrate();
+    if (inByte == 'd') displaySettings();
   }
 }

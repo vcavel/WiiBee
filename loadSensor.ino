@@ -4,7 +4,7 @@ boolean areNewValueAvailable() {
   int i;
   
   // check for new data/start next conversion:
-  for (i=0; i < nbLoadCells; i++) {
+  for (i=0; i < NB_LOAD_CELLS; i++) {
     newDataReady = loadCells[i].update() || newDataReady;
   }
 
@@ -12,58 +12,50 @@ boolean areNewValueAvailable() {
 }
 
 float readLoadSensorsAverage() {
-  float sum = 0;
+  float sum = 0.00;
   int i;
   int sensorValue;
 
   refreshAllLoadCells();
-  
-  for(i = 0; i < nbLoadCells; i++) {
-
-    while(loadCells[i].update() == 0) {}
+  for(i = 0; i < NB_LOAD_CELLS; i++) {
+    
+    //loadCells[i].update();
     sensorValue = loadCells[i].getData();
     sum += sensorValue;
   }
-  return sum/nbLoadCells;
+  return sum / NB_LOAD_CELLS;
 }
 
 float readWeight() {
-  return readLoadSensorsAverage()*calibrationFactor;
+  return readLoadSensorsAverage() * wiiBeeSettings.calibrationFactor;
 }
 
 // zero offset value (tare), calculate and save to EEprom:
 void refreshOffsetValueAndSaveToEEprom() {
   Serial.println("Calculating tare offset value...");
   int i;
+
+  int newTareOffsetValues[4];
   
-  for (i = 0; i < nbLoadCells; i++) {
-
-    long _offset;
-
-    _offset = 0;
+  for (i = 0; i < NB_LOAD_CELLS; i++) {
 
     loadCells[i].tare(); // calculate the new tare / zero offset value (blocking)
-    _offset = loadCells[i].getTareOffset(); // get the new tare / zero offset value
-    EEPROM.put(tareOffsetVal_eepromAdresses[i], _offset); // save the new tare / zero offset value to EEprom
-    loadCells[i].setTareOffset(_offset); // set value as library parameter (next restart it will be read from EEprom)
+    newTareOffsetValues[i] = loadCells[i].getTareOffset(); // get the new tare / zero offset value
+    loadCells[i].setTareOffset(newTareOffsetValues[i]); // set value as library parameter (next restart it will be read from EEprom)
+    wiiBeeSettings.tareOffsetVal[i] = newTareOffsetValues[i];
     Serial.print("New tare offset value:");
-    Serial.print(_offset);
-    Serial.print(", saved to EEprom adr:");
-    Serial.print(tareOffsetVal_eepromAdresses[i]);
+    Serial.print(newTareOffsetValues[i]);
     Serial.print(", for load cell");
     Serial.println(i);
   }
-  
-  #if defined(ESP8266) || defined(ESP32)
-    EEPROM.commit();
-  #endif
-  
+
+  saveSettingsToEEprom();
 }
 
 void refreshAllLoadCells() {
   //Refresh all datasets
   int i;
-  for (i = 0; i < nbLoadCells; i++) {
+  for (i = 0; i < NB_LOAD_CELLS; i++) {
     loadCells[i].refreshDataSet();
   }
   
@@ -74,11 +66,11 @@ void calibrate() {
   Serial.println("Calibration process starting, please an object on the scale and input its weight in Kg");
 
 
-  float known_mass = 0;
+  float known_mass = 0.000;
   bool _resume = false;
 
   while (_resume == false) {
-    readLoadSensorsAverage();
+    //readLoadSensorsAverage();
     if (Serial.available() > 0) {
       known_mass = Serial.parseFloat();
       if (known_mass != 0) {
@@ -91,44 +83,33 @@ void calibrate() {
   }
   
   float loadSensorsAverage = readLoadSensorsAverage();
-  calibrationFactor = known_mass/loadSensorsAverage;
+  wiiBeeSettings.calibrationFactor = known_mass / loadSensorsAverage;
   Serial.print("Reading : ");
   Serial.print(loadSensorsAverage);
-  Serial.println(", should be 1.0");
+  Serial.print(", should be ");
+  Serial.println(known_mass);
   Serial.print("Calibration factor set to ");
-  Serial.println(calibrationFactor);
+  Serial.println(wiiBeeSettings.calibrationFactor, 10);
     
-  //Recording the new calibration factor in the EEPROM
-  EEPROM.put(calibrationFactorAdress, calibrationFactor);
- 
-  #if defined(ESP8266) || defined(ESP32)
-    EEPROM.commit();
-  #endif    
+  saveSettingsToEEprom();
+  
 }
 
 void restoreSettingsFromEeprom() {
-  #if defined(ESP8266)|| defined(ESP32)
-    EEPROM.begin(512);
-  #endif
-
-  EEPROM.get(calibrationFactorAdress, calibrationFactor);
-  Serial.print("Loading calibration factor from EEPROM : ");
-  Serial.println(calibrationFactor);
-
+  
+  reloadSettingsFromEEprom();
 
   int i;
   
-  for (i = 0; i < nbLoadCells; i++) {
+  for (i = 0; i < NB_LOAD_CELLS; i++) {
     loadCells[i].begin();
     delay(10);  
 
     //restore the zero offset value from eeprom:
-    long tare_offset = 0;
-    EEPROM.get(tareOffsetVal_eepromAdresses[i], tare_offset); 
-    loadCells[i].setTareOffset(tare_offset);
+    loadCells[i].setTareOffset(wiiBeeSettings.tareOffsetVal[i]);
     boolean _tare = false; //set this to false as the value has been resored from eeprom
 
-    unsigned long stabilizingtime = 5000; // precision right after power-up can be improved by adding a few seconds of stabilizing time
+    unsigned long stabilizingtime = 1000; // precision right after power-up can be improved by adding a few seconds of stabilizing time
     
     loadCells[i].start(stabilizingtime, _tare);
     if (loadCells[i].getTareTimeoutFlag()) {
