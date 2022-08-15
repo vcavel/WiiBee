@@ -36,8 +36,8 @@ void displaySettings() {
   Serial.print("calibrationFactor = ");
   Serial.println(wiiBeeSettings.calibrationFactor, 10);
 
-  Serial.print("essid = ");
-  Serial.println(wiiBeeSettings.essid);
+  Serial.print("ssid = ");
+  Serial.println(wiiBeeSettings.ssid);
 
   Serial.print("passphrase = ");
   Serial.println(wiiBeeSettings.passphrase);

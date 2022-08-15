@@ -45,10 +45,10 @@ HX711_ADC loadCells[4] = {
 struct WiiBeeSettings {
   int tareOffsetVal[NB_LOAD_CELLS];
   float calibrationFactor;
-  String essid;
-  String passphrase;
-  String server;
-  String wiiBeeName;
+  char ssid[128];
+  char passphrase[256];
+  char server[256];
+  char wiiBeeName[64];
 };
 
 WiiBeeSettings wiiBeeSettings;
@@ -61,7 +61,8 @@ void setup() {
   Serial.println();
   Serial.println("Starting...");
 
-  restoreSettingsFromEeprom();  
+  restoreSettingsFromEeprom();
+  configureNetwork();
 }
 
 
@@ -78,6 +79,9 @@ void loop() {
     Serial.print("Poids = ");
     Serial.print(sum / nbSamples);
     Serial.println("Kg");
+    if (sum / nbSamples > 10) {
+      sendWeightToServer(sum / nbSamples);
+    }
     t = millis();
   }
   readSerialInput();
